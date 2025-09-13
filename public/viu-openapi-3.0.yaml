@@ -1,0 +1,774 @@
+openapi: 3.0.3
+info:
+  title: VIU API
+  version: 0.1.0
+  description: 'Core endpoints for the VIU platform (approvals, assets, comments with
+    audio, projects, organizations).
+
+    Auth uses Bearer JWT. Pagination via `page` & `pageSize`. Dates ISO-8601.'
+servers:
+- url: http://localhost:3000/api
+  description: Local dev
+- url: https://api.viu.yourdomain.com
+  description: Production (placeholder)
+tags:
+- name: Auth
+- name: Users
+- name: Organizations
+- name: Projects
+- name: Assets
+- name: Approvals
+- name: Comments
+- name: Notifications
+- name: Webhooks
+- name: Admin
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+        details:
+          type: object
+      required:
+      - error
+      - code
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        avatarUrl:
+          type: string
+        role:
+          type: string
+          enum:
+          - owner
+          - admin
+          - member
+          - reviewer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+      - id
+      - name
+      - email
+      - role
+      - createdAt
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        logoUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+      - id
+      - name
+      - slug
+      - createdAt
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        orgId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+          - draft
+          - in_review
+          - approved
+          - archived
+        createdAt:
+          type: string
+          format: date-time
+      required:
+      - id
+      - orgId
+      - name
+      - status
+      - createdAt
+    Asset:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+          - image
+          - pdf
+          - video
+          - audio
+          - other
+        filename:
+          type: string
+        url:
+          type: string
+        thumbnailUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+      - id
+      - projectId
+      - type
+      - filename
+      - url
+      - createdAt
+    Comment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        assetId:
+          type: string
+          format: uuid
+        authorId:
+          type: string
+          format: uuid
+        text:
+          type: string
+        audioUrl:
+          type: string
+          description: Optional voice feedback file
+        transcript:
+          type: string
+        markers:
+          type: array
+          items:
+            type: object
+            properties:
+              x:
+                type: number
+              y:
+                type: number
+        createdAt:
+          type: string
+          format: date-time
+      required:
+      - id
+      - assetId
+      - authorId
+      - createdAt
+    Approval:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        assetId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+          - pending
+          - changes_requested
+          - approved
+        dueAt:
+          type: string
+          format: date-time
+        approvedBy:
+          type: string
+          format: uuid
+      required:
+      - id
+      - assetId
+      - status
+    Page:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          default: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        total:
+          type: integer
+          minimum: 0
+security:
+- BearerAuth: []
+paths:
+  /health:
+    get:
+      tags:
+      - Admin
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: OK
+  /auth/login:
+    post:
+      tags:
+      - Auth
+      summary: Email + password login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+              required:
+              - email
+              - password
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /auth/google:
+    post:
+      tags:
+      - Auth
+      summary: Exchange Google OAuth code for JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+              required:
+              - code
+      responses:
+        '200':
+          description: JWT issued
+  /users/me:
+    get:
+      tags:
+      - Users
+      summary: Current user
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /organizations:
+    get:
+      tags:
+      - Organizations
+      summary: List organizations
+      parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+      - name: pageSize
+        in: query
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Organization'
+                  page:
+                    $ref: '#/components/schemas/Page'
+    post:
+      tags:
+      - Organizations
+      summary: Create organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                slug:
+                  type: string
+              required:
+              - name
+              - slug
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+  /organizations/{orgId}:
+    parameters:
+    - name: orgId
+      in: path
+      required: true
+      schema:
+        type: string
+    get:
+      tags:
+      - Organizations
+      summary: Get organization
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+    patch:
+      tags:
+      - Organizations
+      summary: Update organization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                logoUrl:
+                  type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+      - Organizations
+      summary: Delete organization
+      responses:
+        '204':
+          description: No Content
+  /projects:
+    get:
+      tags:
+      - Projects
+      summary: List projects
+      parameters:
+      - name: orgId
+        in: query
+        schema:
+          type: string
+      - name: status
+        in: query
+        schema:
+          type: string
+      - name: page
+        in: query
+        schema:
+          type: integer
+      - name: pageSize
+        in: query
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: OK
+    post:
+      tags:
+      - Projects
+      summary: Create project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orgId:
+                  type: string
+                name:
+                  type: string
+                status:
+                  type: string
+              required:
+              - orgId
+              - name
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+  /projects/{projectId}:
+    parameters:
+    - name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+    get:
+      tags:
+      - Projects
+      summary: Get project
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+    patch:
+      tags:
+      - Projects
+      summary: Update project
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                status:
+                  type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+      - Projects
+      summary: Archive project
+      responses:
+        '204':
+          description: No Content
+  /assets:
+    post:
+      tags:
+      - Assets
+      summary: Upload asset
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                projectId:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+                type:
+                  type: string
+              required:
+              - projectId
+              - file
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+    get:
+      tags:
+      - Assets
+      summary: List assets
+      parameters:
+      - name: projectId
+        in: query
+        schema:
+          type: string
+      - name: page
+        in: query
+        schema:
+          type: integer
+      - name: pageSize
+        in: query
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: OK
+  /assets/{assetId}:
+    parameters:
+    - name: assetId
+      in: path
+      required: true
+      schema:
+        type: string
+    get:
+      tags:
+      - Assets
+      summary: Get asset
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+    delete:
+      tags:
+      - Assets
+      summary: Delete asset
+      responses:
+        '204':
+          description: No Content
+  /assets/{assetId}/comments:
+    post:
+      tags:
+      - Comments
+      summary: Create comment (text and/or audio)
+      parameters:
+      - name: assetId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                audio:
+                  type: string
+                  format: binary
+                markers:
+                  type: string
+                  description: JSON string for [{x,y}] markers
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                markers:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      x:
+                        type: number
+                      y:
+                        type: number
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+    get:
+      tags:
+      - Comments
+      summary: List comments for an asset
+      parameters:
+      - name: assetId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: page
+        in: query
+        schema:
+          type: integer
+      - name: pageSize
+        in: query
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: OK
+  /assets/{assetId}/approvals:
+    post:
+      tags:
+      - Approvals
+      summary: Create approval request
+      parameters:
+      - name: assetId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dueAt:
+                  type: string
+                  format: date-time
+                reviewerIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Approval'
+    get:
+      tags:
+      - Approvals
+      summary: List approvals for asset
+      parameters:
+      - name: assetId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+  /approvals/{approvalId}:
+    parameters:
+    - name: approvalId
+      in: path
+      required: true
+      schema:
+        type: string
+    patch:
+      tags:
+      - Approvals
+      summary: Update approval status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum:
+                  - pending
+                  - changes_requested
+                  - approved
+              required:
+              - status
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Approval'
+  /notifications:
+    get:
+      tags:
+      - Notifications
+      summary: List my notifications
+      parameters:
+      - name: unread
+        in: query
+        schema:
+          type: boolean
+      - name: page
+        in: query
+        schema:
+          type: integer
+      - name: pageSize
+        in: query
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: OK
+    patch:
+      tags:
+      - Notifications
+      summary: Bulk mark as read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: OK
+  /webhooks/viu:
+    post:
+      tags:
+      - Webhooks
+      summary: Inbound webhooks (e.g., transcription ready)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: OK

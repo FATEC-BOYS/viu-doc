@@ -1,0 +1,13 @@
+
+{
+  "name": "viu-api-doc",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "serve public"
+  },
+  "dependencies": {
+    "swagger-ui-dist": "^5.11.10",
+    "serve": "^14.2.0"
+  }
+}
